@@ -4,7 +4,7 @@
 
 enum partition {squares,rows,cols};
 
-double square_partition(int n, int rank, int size) {
+double square_partition(int n, int rank, int size, int num_iter) {
 	double start_t, end_t;
 	int test=0;
 
@@ -32,7 +32,7 @@ double square_partition(int n, int rank, int size) {
 	return end_t-start_t;
 }
 
-double col_partition(int n, int rank, int size) {
+double col_partition(int n, int rank, int size, int num_iter) {
 	if(rank==0){
 			std::cout<<"Partitioning with columns"<<std::endl;
 	}
@@ -90,6 +90,7 @@ double col_partition(int n, int rank, int size) {
 
 int main(int argc, char *argv[]) {
 	int n=10;	//Grid is nxn
+	int num_iter=500;
 	partition part = cols;
 	double time;
 
@@ -101,10 +102,10 @@ int main(int argc, char *argv[]) {
 
 	MPI_Barrier(MPI_COMM_WORLD);
 	if(part==cols) {
-		time = col_partition(n,rank,size);
+		time = col_partition(n,rank,size,num_iter);
 	}
 	else if(part==squares) {
-		time = square_partition(n,rank,size);
+		time = square_partition(n,rank,size,num_iter);
 	}
 	else {
 		std::cout<<"Error! Invalid partition!"<<std::endl;
