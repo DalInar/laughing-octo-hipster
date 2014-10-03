@@ -107,7 +107,7 @@ double col_partition(int n, int rank, int size, int num_iter) {
 	int row,col;
 	for(int i=size_y; i<length-size_y; i++) {
 		row = i%size_y;
-		col = (i-i%size_y)/size_y + col_offset;
+		col = (i-i%size_y)/size_y - 1 + col_offset;
 		if(row == 0) {
 			A[i] = 0.0;
 		}
@@ -133,10 +133,10 @@ double col_partition(int n, int rank, int size, int num_iter) {
 	//nonblocking send first col
 	MPI_Send(&A[size_y],size_y,MPI_DOUBLE,sendL,0,MPI_COMM_WORLD);
 	//nonblocking send last col
-	MPI_Send(&A[size_x*size_y],size_y,MPI_DOUBLE,sendR,0,MPI_COMM_WORLD);
+	MPI_Send(&A[size_x*size_y],size_y,MPI_DOUBLE,sendR,1,MPI_COMM_WORLD);
 	//nonblocking rec first ghost col
 	MPI_Request requestL;
-	MPI_Irecv(&A[0],size_y,MPI_DOUBLE,recvL,0,MPI_COMM_WORLD,&requestL);
+	MPI_Irecv(&A[0],size_y,MPI_DOUBLE,recvL,1,MPI_COMM_WORLD,&requestL);
 	//nonblocking rec last ghost col
 	MPI_Request requestR;
 	MPI_Irecv(&A[(size_x+1)*size_y],size_y,MPI_DOUBLE,recvR,0,MPI_COMM_WORLD,&requestR);
@@ -144,7 +144,14 @@ double col_partition(int n, int rank, int size, int num_iter) {
 	//update B (inner cols first, then check to see if ghost data has arrived to update end cols)
 	//swap A,B pointers
 
+	MPI_Wait(&requestL,MPI_STATUS_IGNORE);
+	MPI_Wait(&requestR,MPI_STATUS_IGNORE);
+
+
 	MPI_Barrier(MPI_COMM_WORLD);
+
+	print_grid(A, rank, size, size_x, size_y, cols);
+
 	if(rank==0) {
 		end_t=MPI_Wtime();
 	}
