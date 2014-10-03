@@ -130,37 +130,77 @@ double col_partition(int n, int rank, int size, int num_iter) {
 		start_t=MPI_Wtime();
 	}
 
-	//nonblocking send first col
-	MPI_Send(&A[size_y],size_y,MPI_DOUBLE,sendL,0,MPI_COMM_WORLD);
-	//nonblocking send last col
-	MPI_Send(&A[size_x*size_y],size_y,MPI_DOUBLE,sendR,1,MPI_COMM_WORLD);
-	//nonblocking rec first ghost col
-	MPI_Request requestL;
-	MPI_Irecv(&A[0],size_y,MPI_DOUBLE,recvL,1,MPI_COMM_WORLD,&requestL);
-	//nonblocking rec last ghost col
-	MPI_Request requestR;
-	MPI_Irecv(&A[(size_x+1)*size_y],size_y,MPI_DOUBLE,recvR,0,MPI_COMM_WORLD,&requestR);
+	for(int k=0; k<500; k++) {
+		//nonblocking send first col
+		MPI_Send(&A[size_y],size_y,MPI_DOUBLE,sendL,0,MPI_COMM_WORLD);
+		//nonblocking send last col
+		MPI_Send(&A[size_x*size_y],size_y,MPI_DOUBLE,sendR,1,MPI_COMM_WORLD);	//Use tags in case two procs communicate on both left and right
+		//nonblocking rec first ghost col
+		MPI_Request requestL;
+		MPI_Irecv(&A[0],size_y,MPI_DOUBLE,recvL,1,MPI_COMM_WORLD,&requestL);
+		//nonblocking rec last ghost col
+		MPI_Request requestR;
+		MPI_Irecv(&A[(size_x+1)*size_y],size_y,MPI_DOUBLE,recvR,0,MPI_COMM_WORLD,&requestR);
 
-	//update B (inner cols first, then check to see if ghost data has arrived to update end cols)
-	//swap A,B pointers
+		//update B (inner cols first, then check to see if ghost data has arrived to update end cols)
+		for(int i=2*size_y; i<length-2*size_y; i++) {
+			row = i%size_y;
+			if(row!=0 && row!=n-1) {
+				col = (i-i%size_y)/size_y - 1;
+				B[i]=(A[i]+
+						A[size_y+row+(col-1)*size_y]+A[size_y+row+(col+1)*size_y]+
+						A[size_y+row-1+(col)*size_y]+A[size_y+row+1+(col)*size_y]+
+						A[size_y+row-1+(col-1)*size_y]+A[size_y+row-1+(col+1)*size_y]+
+						A[size_y+row+1+(col-1)*size_y]+A[size_y+row+1+(col+1)*size_y])/9;
+			}
+			else {
+				B[i]=A[i];
+			}
+		}
 
-	MPI_Wait(&requestL,MPI_STATUS_IGNORE);
-	MPI_Wait(&requestR,MPI_STATUS_IGNORE);
+		//Wait until ghost cell data arrives
+		MPI_Wait(&requestL,MPI_STATUS_IGNORE);
+		MPI_Wait(&requestR,MPI_STATUS_IGNORE);
 
+		//Update boundary columns
+		B[size_y]=A[size_y];
+		B[2*size_y-1]=A[2*size_y-1];
+		B[(size_x)*size_y]=A[(size_x)*size_y];
+		B[(size_x+1)*size_y-1]=A[(size_x+1)*size_y-1];
+		for(int i=1; i<n-1; i++) {
+			row=i;
+			col = 0;
+			B[size_y+i]=(A[size_y+i]+
+					A[size_y+row+(col-1)*size_y]+A[size_y+row+(col+1)*size_y]+
+					A[size_y+row-1+(col)*size_y]+A[size_y+row+1+(col)*size_y]+
+					A[size_y+row-1+(col-1)*size_y]+A[size_y+row-1+(col+1)*size_y]+
+					A[size_y+row+1+(col-1)*size_y]+A[size_y+row+1+(col+1)*size_y])/9;
+			col = size_x-1;
+			B[(size_x)*size_y+i]=(A[(size_x)*size_y+i]+
+					A[size_y+row+(col-1)*size_y]+A[size_y+row+(col+1)*size_y]+
+					A[size_y+row-1+(col)*size_y]+A[size_y+row+1+(col)*size_y]+
+					A[size_y+row-1+(col-1)*size_y]+A[size_y+row-1+(col+1)*size_y]+
+					A[size_y+row+1+(col-1)*size_y]+A[size_y+row+1+(col+1)*size_y])/9;
+		}
+
+		//swap A,B pointers
+		C=B;
+		B=A;
+		A=C;
+	}
 
 	MPI_Barrier(MPI_COMM_WORLD);
-
-	print_grid(A, rank, size, size_x, size_y, cols);
-
 	if(rank==0) {
 		end_t=MPI_Wtime();
 	}
+
+	print_grid(A, rank, size, size_x, size_y, cols);
 
 	return end_t-start_t;
 }
 
 int main(int argc, char *argv[]) {
-	int n=10;	//Grid is nxn
+	int n=100;	//Grid is nxn
 	int num_iter=500;
 	partition part = cols;
 	double time;
