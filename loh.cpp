@@ -185,24 +185,37 @@ double col_partition(int n, int rank, int size, int num_iter, std::ofstream & ou
 		MPI_Wait(&requestR,MPI_STATUS_IGNORE);
 
 		//Update boundary columns
-		B[size_y]=A[size_y];
-		B[2*size_y-1]=A[2*size_y-1];
-		B[(size_x)*size_y]=A[(size_x)*size_y];
-		B[(size_x+1)*size_y-1]=A[(size_x+1)*size_y-1];
-		for(int i=1; i<n-1; i++) {
-			row=i;
-			col = 0;
-			B[size_y+i]=(A[size_y+i]+
-					A[size_y+row+(col-1)*size_y]+A[size_y+row+(col+1)*size_y]+
-					A[size_y+row-1+(col)*size_y]+A[size_y+row+1+(col)*size_y]+
-					A[size_y+row-1+(col-1)*size_y]+A[size_y+row-1+(col+1)*size_y]+
-					A[size_y+row+1+(col-1)*size_y]+A[size_y+row+1+(col+1)*size_y])/9;
-			col = size_x-1;
-			B[(size_x)*size_y+i]=(A[(size_x)*size_y+i]+
-					A[size_y+row+(col-1)*size_y]+A[size_y+row+(col+1)*size_y]+
-					A[size_y+row-1+(col)*size_y]+A[size_y+row+1+(col)*size_y]+
-					A[size_y+row-1+(col-1)*size_y]+A[size_y+row-1+(col+1)*size_y]+
-					A[size_y+row+1+(col-1)*size_y]+A[size_y+row+1+(col+1)*size_y])/9;
+//		B[size_y]=A[size_y];
+//		B[2*size_y-1]=A[2*size_y-1];
+//		B[(size_x)*size_y]=A[(size_x)*size_y];
+//		B[(size_x+1)*size_y-1]=A[(size_x+1)*size_y-1];
+//		for(int i=1; i<n-1; i++) {
+//			row=i;
+//			col = 0;
+//			B[size_y+i]=(A[size_y+i]+
+//					A[size_y+row+(col-1)*size_y]+A[size_y+row+(col+1)*size_y]+
+//					A[size_y+row-1+(col)*size_y]+A[size_y+row+1+(col)*size_y]+
+//					A[size_y+row-1+(col-1)*size_y]+A[size_y+row-1+(col+1)*size_y]+
+//					A[size_y+row+1+(col-1)*size_y]+A[size_y+row+1+(col+1)*size_y])/9;
+//			col = size_x-1;
+//			B[(size_x)*size_y+i]=(A[(size_x)*size_y+i]+
+//					A[size_y+row+(col-1)*size_y]+A[size_y+row+(col+1)*size_y]+
+//					A[size_y+row-1+(col)*size_y]+A[size_y+row+1+(col)*size_y]+
+//					A[size_y+row-1+(col-1)*size_y]+A[size_y+row-1+(col+1)*size_y]+
+//					A[size_y+row+1+(col-1)*size_y]+A[size_y+row+1+(col+1)*size_y])/9;
+//		}
+
+		for(col=0; col<size_x; col=col+size_x-1) {
+			i = size_y + col*size_y;
+			B[i]=A[i];
+			B[i+size_y-1]=A[i+size_y-1];
+			for(row=1; row<size_y-1; row++) {
+				i+=1;
+				B[i]=A[i-1]+A[i]+A[i+1];
+				B[i]+=A[i-size_y-1]+A[i-size_y]+A[i-size_y+1];
+				B[i]+=A[i+size_y-1]+A[i+size_y]+A[i+size_y+1];
+				B[i]=B[i]/9;
+			}
 		}
 
 		//swap A,B pointers
