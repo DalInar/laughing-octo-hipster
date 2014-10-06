@@ -150,18 +150,33 @@ double col_partition(int n, int rank, int size, int num_iter, std::ofstream & ou
 		MPI_Irecv(&A[(size_x+1)*size_y],size_y,MPI_DOUBLE,recvR,0,MPI_COMM_WORLD,&requestR);
 
 		//update B (inner cols first, then check to see if ghost data has arrived to update end cols)
-		for(int i=2*size_y; i<length-2*size_y; i++) {
-			row = i%size_y;
-			if(row!=0 && row!=n-1) {
-				col = (i-i%size_y)/size_y - 1;
-				B[i]=(A[i]+
-						A[size_y+row+(col-1)*size_y]+A[size_y+row+(col+1)*size_y]+
-						A[size_y+row-1+(col)*size_y]+A[size_y+row+1+(col)*size_y]+
-						A[size_y+row-1+(col-1)*size_y]+A[size_y+row-1+(col+1)*size_y]+
-						A[size_y+row+1+(col-1)*size_y]+A[size_y+row+1+(col+1)*size_y])/9;
-			}
-			else {
-				B[i]=A[i];
+//		for(int i=2*size_y; i<length-2*size_y; i++) {
+//			row = i%size_y;
+//			if(row!=0 && row!=n-1) {
+//				col = (i-i%size_y)/size_y - 1;
+//				B[i]=(A[i]+
+//						A[size_y+row+(col-1)*size_y]+A[size_y+row+(col+1)*size_y]+
+//						A[size_y+row-1+(col)*size_y]+A[size_y+row+1+(col)*size_y]+
+//						A[size_y+row-1+(col-1)*size_y]+A[size_y+row-1+(col+1)*size_y]+
+//						A[size_y+row+1+(col-1)*size_y]+A[size_y+row+1+(col+1)*size_y])/9;
+//			}
+//			else {
+//				B[i]=A[i];
+//			}
+//		}
+
+		//different indexing scheme
+		int i;
+		for(col=1; col<size_x-1; col++) {
+			i = size_y + col*size_y;
+			B[i]=A[i];
+			B[i+size_y-1]=A[i+size_y-1];
+			for(row=1; row<size_y-1; row++) {
+				i+=1;
+				B[i]=A[i-1]+A[i]+A[i+1];
+				B[i]+=A[i-size_y-1]+A[i-size_y]+A[i-size_y+1];
+				B[i]+=A[i+size_y-1]+A[i+size_y]+A[i+size_y+1];
+				B[i]=B[i]/9;
 			}
 		}
 
