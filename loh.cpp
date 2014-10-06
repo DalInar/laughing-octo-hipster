@@ -86,7 +86,7 @@ double col_partition(int n, int rank, int size, int num_iter) {
 			std::cout<<"Partitioning with columns"<<std::endl;
 	}
 
-	double start_t, end_t;
+	double start_t, end_t, local_verify, global_verify;
 	int size_x = ceil((1.0*n)/size);;
 	int size_y = n;
 	int col_offset = rank*size_x;	//Each processor needs to know which columns it actually has from A
@@ -118,7 +118,7 @@ double col_partition(int n, int rank, int size, int num_iter) {
 			A[i] = 0.5;
 		}
 	}
-	print_grid(A, rank, size, size_x, size_y, cols);
+	//print_grid(A, rank, size, size_x, size_y, cols);
 
 	int sendL=(rank-1+size)%size;
 	int recvL=sendL;
@@ -189,12 +189,22 @@ double col_partition(int n, int rank, int size, int num_iter) {
 		A=C;
 	}
 
+	local_verify=0.0;
+	for(col=0; col<size_x; col++) {
+		row=col+col_offset;
+		local_verify+=A[size_y+col*size_y+row];
+	}
+
+	MPI_Reduce(&local_verify, &global_verify, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+
+
 	MPI_Barrier(MPI_COMM_WORLD);
 	if(rank==0) {
 		end_t=MPI_Wtime();
+		std::cout<<"Global Verification = "<<global_verify<<std::endl;
 	}
 
-	print_grid(A, rank, size, size_x, size_y, cols);
+	//print_grid(A, rank, size, size_x, size_y, cols);
 
 	return end_t-start_t;
 }
