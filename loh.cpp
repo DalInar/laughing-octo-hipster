@@ -1,4 +1,5 @@
 #include <iostream>
+#include <stdlib.h>
 #include <math.h>
 #include <mpi.h>
 
@@ -211,7 +212,7 @@ double col_partition(int n, int rank, int size, int num_iter) {
 
 int main(int argc, char *argv[]) {
 	int n=100;	//Grid is nxn
-	int num_iter=500;
+	int num_iter=atoi(argv[1]);
 	partition part = cols;
 	double time;
 
