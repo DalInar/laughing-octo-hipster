@@ -1,6 +1,8 @@
 #include <iostream>
 #include <stdlib.h>
 #include <math.h>
+#include <fstream>
+#include <sstream>
 #include <mpi.h>
 
 enum partition {squares,rows,cols};
@@ -82,21 +84,19 @@ double square_partition(int n, int rank, int size, int num_iter) {
 	return end_t-start_t;
 }
 
-double col_partition(int n, int rank, int size, int num_iter) {
+double col_partition(int n, int rank, int size, int num_iter, std::ofstream & output) {
 	if(rank==0){
 			std::cout<<"Partitioning with columns on "<<n<<" by "<<n<<std::endl;
 	}
 
 	double start_t, end_t, local_verify, global_verify;
-	int size_x = ceil((1.0*n)/size);;
+	int size_x = ceil((1.0*n)/size);
 	int size_y = n;
 	int col_offset = rank*size_x;	//Each processor needs to know which columns it actually has from A
 
 	if(rank == size-1) {
 		size_x = n - (size-1)*size_x;
 	}
-
-	std::cout<<"Rank: "<<rank<<", size_x: "<<size_x<<", size_y: "<<size_y<<std::endl;
 
 	double * A;
 	double * B;
@@ -126,22 +126,21 @@ double col_partition(int n, int rank, int size, int num_iter) {
 	int sendR=(rank+1)%size;
 	int recvR=sendR;
 
-	std::cout<<"Beginning iterations"<<std::endl;
+	std::cout<<"Rank: "<<rank<<", size_x: "<<size_x<<", size_y: "<<size_y<<std::endl;
+
 	MPI_Barrier(MPI_COMM_WORLD);
 	if(rank==0) {
 		start_t=MPI_Wtime();
 	}
 
 	for(int k=0; k<500; k++) {
-		if(rank==0) {
-			std::cout<<k<<std::endl;
-		}
-
 		//nonblocking send first col
-		MPI_Send(&A[size_y],size_y,MPI_DOUBLE,sendL,0,MPI_COMM_WORLD);
+		MPI_Request sendrequestL;
+		MPI_Isend(&A[size_y],size_y,MPI_DOUBLE,sendL,0,MPI_COMM_WORLD, &sendrequestL);
 
 		//nonblocking send last col
-		MPI_Send(&A[size_x*size_y],size_y,MPI_DOUBLE,sendR,1,MPI_COMM_WORLD);	//Use tags in case two procs communicate on both left and right
+		MPI_Request sendrequestR;
+		MPI_Isend(&A[size_x*size_y],size_y,MPI_DOUBLE,sendR,1,MPI_COMM_WORLD, &sendrequestR);	//Use tags in case two procs communicate on both left and right
 		//nonblocking rec first ghost col
 
 		MPI_Request requestL;
@@ -149,8 +148,6 @@ double col_partition(int n, int rank, int size, int num_iter) {
 		//nonblocking rec last ghost col
 		MPI_Request requestR;
 		MPI_Irecv(&A[(size_x+1)*size_y],size_y,MPI_DOUBLE,recvR,0,MPI_COMM_WORLD,&requestR);
-
-
 
 		//update B (inner cols first, then check to see if ghost data has arrived to update end cols)
 		for(int i=2*size_y; i<length-2*size_y; i++) {
@@ -213,6 +210,13 @@ double col_partition(int n, int rank, int size, int num_iter) {
 		std::cout<<"Global Verification = "<<global_verify<<std::endl;
 	}
 
+	if(rank==0) {
+		output<<"Time\t"<<end_t-start_t<<std::endl;
+		output<<"Verify\t"<<global_verify<<std::endl;
+	}
+
+	delete []A;
+	delete []B;
 	//print_grid(A, rank, size, size_x, size_y, cols);
 
 	return end_t-start_t;
@@ -222,7 +226,7 @@ int main(int argc, char *argv[]) {
 	int n=atoi(argv[1]);	//Grid is nxn
 	int num_iter=500;
 	partition part = cols;
-	double time;
+	double time,verify;
 
 	int rank, size;
 	MPI_Init(&argc, &argv); //Start up MPI
@@ -230,9 +234,18 @@ int main(int argc, char *argv[]) {
 	MPI_Comm_size(MPI_COMM_WORLD, &size); //Get number of processors in communicator
 	std::cout<<"Process "<<rank<<" of "<<size<<" online"<<std::endl;
 
+	std::ofstream output;
+	std::stringstream filename;
+	if(rank==0) {
+		filename << "loh_n"<<n<<"_p"<<size;
+		output.open(filename.str().c_str());
+		output<<"Size\t"<<n<<std::endl;
+		output<<"Procs\t"<<size<<std::endl;
+	}
+
 	MPI_Barrier(MPI_COMM_WORLD);
 	if(part==cols) {
-		time = col_partition(n,rank,size,num_iter);
+		time = col_partition(n,rank,size,num_iter,output);
 	}
 	else if(part==squares) {
 		time = square_partition(n,rank,size,num_iter);
@@ -244,6 +257,8 @@ int main(int argc, char *argv[]) {
 	if(rank==0) {
 		std::cout<<"Elapsed time: "<<time<<" seconds"<<std::endl;
 	}
+
+	output.close();
 
 	MPI_Finalize();
 
