@@ -90,6 +90,7 @@ double col_partition(int n, int rank, int size, int num_iter, std::ofstream & ou
 	}
 
 	double start_t, end_t, local_verify, global_verify;
+	int temp,index;
 	int size_x = ceil((1.0*n)/size);
 	int size_y = n;
 	int col_offset = rank*size_x;	//Each processor needs to know which columns it actually has from A
@@ -166,17 +167,19 @@ double col_partition(int n, int rank, int size, int num_iter, std::ofstream & ou
 //		}
 
 		//different indexing scheme
-		int i;
+
 		for(col=1; col<size_x-1; col++) {
-			i = size_y + col*size_y;
-			B[i]=A[i];
-			B[i+size_y-1]=A[i+size_y-1];
+			index = size_y*(1 + col);
+			B[index]=A[index];
+			B[index+size_y-1]=A[index+size_y-1];
 			for(row=1; row<size_y-1; row++) {
-				i+=1;
-				B[i]=A[i-1]+A[i]+A[i+1];
-				B[i]+=A[i-size_y-1]+A[i-size_y]+A[i-size_y+1];
-				B[i]+=A[i+size_y-1]+A[i+size_y]+A[i+size_y+1];
-				B[i]=B[i]/9;
+				index+=1;
+				B[index]=A[index-1]+A[index]+A[index+1];
+				temp=index-size_y;
+				B[index]+=A[temp-1]+A[temp]+A[temp+1];
+				temp=index+size_y;
+				B[index]+=A[temp-1]+A[temp]+A[temp+1];
+				B[index]=B[index]/9;
 			}
 		}
 
@@ -206,15 +209,17 @@ double col_partition(int n, int rank, int size, int num_iter, std::ofstream & ou
 //		}
 
 		for(col=0; col<size_x; col=col+size_x-1) {
-			i = size_y + col*size_y;
-			B[i]=A[i];
-			B[i+size_y-1]=A[i+size_y-1];
+			index = size_y + col*size_y;
+			B[index]=A[index];
+			B[index+size_y-1]=A[index+size_y-1];
 			for(row=1; row<size_y-1; row++) {
-				i+=1;
-				B[i]=A[i-1]+A[i]+A[i+1];
-				B[i]+=A[i-size_y-1]+A[i-size_y]+A[i-size_y+1];
-				B[i]+=A[i+size_y-1]+A[i+size_y]+A[i+size_y+1];
-				B[i]=B[i]/9;
+				index+=1;
+				B[index]=A[index-1]+A[index]+A[index+1];
+				temp=index-size_y;
+				B[index]+=A[temp-1]+A[temp]+A[temp+1];
+				temp=index+size_y;
+				B[index]+=A[temp-1]+A[temp]+A[temp+1];
+				B[index]=B[index]/9;
 			}
 		}
 
@@ -226,8 +231,8 @@ double col_partition(int n, int rank, int size, int num_iter, std::ofstream & ou
 
 	local_verify=0.0;
 	for(col=0; col<size_x; col++) {
-		row=col+col_offset;
-		local_verify+=A[size_y+col*size_y+row];
+		//row=col+col_offset;
+		local_verify+=A[size_y+col*(size_y+1)+col_offset];
 	}
 
 	MPI_Reduce(&local_verify, &global_verify, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
